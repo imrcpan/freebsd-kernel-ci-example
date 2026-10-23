@@ -1,0 +1,81 @@
+# Manual only: Actions tab -> freebsd-ci -> Run workflow.
+#
+# 1. build: build the whole FreeBSD world and kernel from source, install them,
+#    reboot into them and export the installed VM as a short-lived artifact.
+# 2. fastfetch / cpu-sysctl: two parallel jobs that boot that exact system and
+#    run one command each. No cache is used, the system is only passed on as an
+#    artifact of this run.
+name: freebsd-ci
+
+on:
+  workflow_dispatch:
+    inputs:
+      src-repo:
+        description: FreeBSD source tree to build
+        default: https://github.com/freebsd/freebsd-src.git
+      src-branch:
+        description: Branch, tag or commit to build
+        default: main
+
+env:
+  BUNDLE: ${{ github.workspace }}/freebsd-built.tar.zst
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Build world and kernel, install, reboot, export
+        uses: imrcpan/freebsd-kernel-ci-tester@main
+        with:
+          src-repo: ${{ inputs.src-repo }}
+          src-branch: ${{ inputs.src-branch }}
+          kernconf: GENERIC
+          build-timeout: '19800'
+          export-image: ${{ env.BUNDLE }}
+
+      - name: Hand the built system to the test jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: freebsd-built
+          path: ${{ env.BUNDLE }}
+          retention-days: 1
+          compression-level: 0
+
+  fastfetch:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: freebsd-built
+          path: ${{ runner.temp }}/built
+
+      - name: fastfetch on the built system
+        uses: imrcpan/freebsd-kernel-ci-tester@main
+        with:
+          image: ${{ runner.temp }}/built/freebsd-built.tar.zst
+          mem: '4096'
+          run: |
+            env ASSUME_ALWAYS_YES=yes pkg install -y fastfetch
+            fastfetch
+
+  cpu-sysctl:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: freebsd-built
+          path: ${{ runner.temp }}/built
+
+      - name: CPU sysctls on the built system
+        uses: imrcpan/freebsd-kernel-ci-tester@main
+        with:
+          image: ${{ runner.temp }}/built/freebsd-built.tar.zst
+          mem: '4096'
+          run: |
+            uname -a
+            sysctl -a | grep cpu
