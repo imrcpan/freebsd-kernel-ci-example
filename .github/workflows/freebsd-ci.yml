@@ -1,7 +1,9 @@
 # Manual only: Actions tab -> freebsd-ci -> Run workflow.
 #
-# 1. build: build the whole FreeBSD world and kernel from source, install them,
-#    reboot into them and export the installed VM as a short-lived artifact.
+# 1. build: build the FreeBSD kernel from source on top of the latest official
+#    prebuilt world of the same branch (skip-world, the default), install it,
+#    reboot into it and export the installed VM as a short-lived artifact.
+#    Untick skip-world to build and install the whole world as well (hours).
 # 2. fastfetch / cpu-sysctl: two parallel jobs that boot that exact system and
 #    run one command each. No cache is used, the system is only passed on as an
 #    artifact of this run.
@@ -16,6 +18,10 @@ on:
       src-branch:
         description: Branch, tag or commit to build
         default: main
+      skip-world:
+        description: Skip building the world, use the latest prebuilt one
+        type: boolean
+        default: true
 
 env:
   BUNDLE: ${{ github.workspace }}/freebsd-built.tar.zst
@@ -31,9 +37,7 @@ jobs:
           src-repo: ${{ inputs.src-repo }}
           src-branch: ${{ inputs.src-branch }}
           kernconf: GENERIC
-          # Build the world too. Set to 'true' to build only the kernel on top of
-          # the latest official prebuilt world of the branch (much faster).
-          skip-world: 'false'
+          skip-world: ${{ inputs.skip-world }}
           build-timeout: '19800'
           export-image: ${{ env.BUNDLE }}
 
