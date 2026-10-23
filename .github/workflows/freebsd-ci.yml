@@ -31,6 +31,9 @@ jobs:
           src-repo: ${{ inputs.src-repo }}
           src-branch: ${{ inputs.src-branch }}
           kernconf: GENERIC
+          # Build the world too. Set to 'true' to build only the kernel on top of
+          # the latest official prebuilt world of the branch (much faster).
+          skip-world: 'false'
           build-timeout: '19800'
           export-image: ${{ env.BUNDLE }}
 
